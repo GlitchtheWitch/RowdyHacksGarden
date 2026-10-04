@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Agent Location</title>
+
+    <style>
+
+        body {
+            background: #111;
+            color: white;
+
+            font-family: monospace;
+
+            text-align: center;
+
+            padding: 40px;
+        }
+
+
+        input,
+        button {
+
+            font-size: 18px;
+
+            padding: 12px;
+
+            margin: 10px;
+
+        }
+
+
+        #status {
+            margin-top: 20px;
+
+            color: #aaa;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<h1>Agent Location</h1>
+
+
+<input
+        id="deviceId"
+        type="text"
+        placeholder="Device ID"
+>
+
+
+<br>
+
+
+<button id="start">
+    Start Location Sharing
+</button>
+
+
+<div id="status">
+    Not connected
+</div>
+
+
+<script src="/sockjs/js/sockjs.min.js"></script>
+
+<script src="/webjars/stomp.js/2.3.4/stomp.min.js"></script>
+
+
+<script>
+
+    const status =
+        document.getElementById("status");
+
+    const deviceIdInput =
+        document.getElementById("deviceId");
+
+    const startButton =
+        document.getElementById("start");
+
+
+    let stompClient;
+
+
+    startButton.addEventListener(
+        "click",
+        () => {
+
+            const deviceId =
+                deviceIdInput.value.trim();
+
+
+            if (!deviceId) {
+
+                status.textContent =
+                    "Please enter a device ID.";
+
+                return;
+            }
+
+
+            // Connect to Spring Boot
+            const socket =
+                new SockJS("/ws");
+
+
+            stompClient =
+                Stomp.over(socket);
+
+
+            stompClient.connect({}, () => {
+
+                status.textContent =
+                    "Connected. Requesting GPS...";
+
+
+                // Start watching GPS
+                navigator.geolocation.watchPosition(
+
+                    (position) => {
+
+                        const latitude =
+                            position.coords.latitude;
+
+                        const longitude =
+                            position.coords.longitude;
+
+
+                        const accuracy =
+                            position.coords.accuracy;
+
+
+                        const data = {
+
+                            deviceId:
+                            deviceId,
+
+                            latitude:
+                            latitude,
+
+                            longitude:
+                            longitude
+                        };
+
+
+                        // Send GPS coordinates
+                        stompClient.send(
+                            "/app/position",
+                            {},
+                            JSON.stringify(data)
+                        );
+
+
+                        status.textContent =
+                            "Location sent. " +
+                            "GPS accuracy: " +
+                            Math.round(accuracy) +
+                            " meters";
+
+                    },
+
+
+                    (error) => {
+
+                        console.error(
+                            "GPS error:",
+                            error
+                        );
+
+
+                        status.textContent =
+                            "Unable to get GPS location: " +
+                            error.message;
+
+                    },
+
+
+                    {
+                        enableHighAccuracy: true,
+
+                        maximumAge: 2000,
+
+                        timeout: 10000
+                    }
+                );
+
+            });
+
+        }
+    );
+
+</script>
+
+</body>
+
+</html>

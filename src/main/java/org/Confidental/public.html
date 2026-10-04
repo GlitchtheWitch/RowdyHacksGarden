@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Marauder's Map</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #111;
+            color: #fff;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 16px;
+            font-size: 20px;
+            color: #aaa;
+        }
+
+        #map-container {
+            position: relative;
+            width: 900px;
+            height: 560px;
+            max-width: 95vw;
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: #1a1a2e;
+            overflow: hidden;
+        }
+
+        #floor-plan {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .dot {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #ff4444;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: left 0.8s ease, top 0.8s ease;
+            z-index: 10;
+        }
+
+        .name-tag {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1px 6px;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+
+        #status {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Agents on the Field</h1>
+
+<div id="map-container">
+    <img
+            id="floor-plan"
+            src="/map.png"
+            alt="Map"
+    >
+</div>
+
+<div id="status">Connecting...</div>
+
+
+<script src="/sockjs/js/sockjs.min.js"></script>
+<script src="/webjars/stomp.js/2.3.4/stomp.min.js"></script>
+
+<script>
+
+    // -----------------------------------------
+    // Page elements
+    // -----------------------------------------
+
+    const container = document.getElementById('map-container');
+    const floorPlan = document.getElementById('floor-plan');
+    const status = document.getElementById('status');
+
+    // Stores dots by device ID
+    const dots = {};
+
+
+    // -----------------------------------------
+    // Connect to Spring Boot WebSocket
+    // -----------------------------------------
+
+    const sock = new SockJS('/ws');
+    const stompClient = Stomp.over(sock);
+
+    stompClient.connect({}, () => {
+
+        status.textContent = 'Connected. Waiting for devices...';
+
+        // Listen for position updates
+        stompClient.subscribe('/topic/updates', (msg) => {
+
+            const data = JSON.parse(msg.body);
+
+            const {
+                x,
+                y,
+                deviceId
+            } = data;
+
+
+            // -----------------------------------------
+            // Create a dot if this device is new
+            // -----------------------------------------
+
+            let dot = dots[deviceId];
+
+            if (!dot) {
+
+                dot = document.createElement('div');
+
+                dot.className = 'dot';
+
+
+                // Device name
+                const tag = document.createElement('div');
+
+                tag.className = 'name-tag';
+
+                tag.textContent = deviceId;
+
+                dot.appendChild(tag);
+
+
+                // Add dot to map
+                container.appendChild(dot);
+
+                dots[deviceId] = dot;
+            }
+
+
+            // -----------------------------------------
+            // Update device position
+            //
+            // x and y are expected to be
+            // percentages from 0 to 100
+            // -----------------------------------------
+
+            dot.style.left =
+                (x / 100 * container.offsetWidth) + 'px';
+
+            dot.style.top =
+                (y / 100 * container.offsetHeight) + 'px';
+
+
+            // -----------------------------------------
+            // Update status
+            // -----------------------------------------
+
+            status.textContent =
+                Object.keys(dots).length +
+                ' device(s) tracked';
+
+        });
+
+    }, (error) => {
+
+        console.error('WebSocket connection error:', error);
+
+        status.textContent = 'Connection failed.';
+
+    });
+
+
+    // -----------------------------------------
+    // WebSocket connection closed
+    // -----------------------------------------
+
+    sock.onclose = () => {
+
+        status.textContent = 'Disconnected.';
+
+    };
+
+</script>
+
+</body>
+</html>
